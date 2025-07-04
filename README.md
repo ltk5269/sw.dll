@@ -82,10 +82,10 @@ def start_streaming():
 #  whisper_wrap.py
 import whisper
 
-# Whisper 모델 로드 (base 모델 사용)
+    # Whisper 모델 로드 (base 모델 사용)
 model = whisper.load_model("base")
 
-# 오디오 파일 → 텍스트 변환
+    # 오디오 파일 → 텍스트 변환
 def transcribe_audio(file_path):
     result = model.transcribe(file_path, language='ko')  # 한국어 인식
     return result.get("text", "")

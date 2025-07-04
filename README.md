@@ -1,16 +1,3 @@
-voice_ai_project/
-├── main.py
-├── stream_audio.py
-├── whisper_wrap.py
-├── rule_engine.py
-├── llama_checker.py
-├── database.py
-├── notifier.py
-├── dashboard.py
-├── config.py
-└── data/
-    └── phishing_log.db (자동 생성)
-
 #  main.py
 from stream_audio import start_streaming  # 오디오 스트리밍 시작 함수
 from dashboard import run_dashboard  # UI 대시보드 함수

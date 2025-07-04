@@ -21,7 +21,7 @@ from database import save_log              # 로그 저장
 from notifier import alert_user, update_dashboard  # 알림과 대시보드 갱신
 import os
 
-# 오디오 녹음 파라미터
+    # 오디오 녹음 파라미터
 CHUNK = 1024
 FORMAT = pyaudio.paInt16
 CHANNELS = 1
@@ -29,7 +29,7 @@ RATE = 16000
 RECORD_SECONDS = 5
 TEMP_FILENAME = "temp.wav"
 
-# 오디오 5초 녹음
+    # 오디오 5초 녹음
 def record_chunk():
     audio = pyaudio.PyAudio()
     stream = audio.open(format=FORMAT, channels=CHANNELS,
@@ -50,7 +50,7 @@ def record_chunk():
     wf.writeframes(b''.join(frames))
     wf.close()
 
-# 전체 오디오 처리 흐름
+    # 전체 오디오 처리 흐름
 def process_audio():
     record_chunk()  # 5초 녹음
     text = transcribe_audio(TEMP_FILENAME)  # 텍스트 변환
@@ -71,7 +71,7 @@ def process_audio():
     if triggered:
         update_dashboard(text, score)  # UI 갱신
 
-# 5초마다 반복 실행
+    # 5초마다 반복 실행
 def start_streaming():
     while True:
         thread = threading.Thread(target=process_audio)
@@ -94,10 +94,10 @@ def transcribe_audio(file_path):
 #  rule_engine.py
 import re
 
-# 의심 키워드 리스트
+    # 의심 키워드 리스트
 SUSPICIOUS_KEYWORDS = ["계좌", "송금", "보안", "인증번호", "공무원", "검찰", "압류"]
 
-# 텍스트 내 키워드 존재 여부 탐지
+    # 텍스트 내 키워드 존재 여부 탐지
 def check_rules(text):
     for keyword in SUSPICIOUS_KEYWORDS:
         if re.search(keyword, text):
@@ -108,7 +108,7 @@ def check_rules(text):
 #  llama_checker.py
 import subprocess
 
-# llama2로 yes/no 보이스피싱 여부 판단
+    # llama2로 yes/no 보이스피싱 여부 판단
 def check_with_llama(text):
     prompt = f"다음 문장이 보이스피싱일 가능성이 있는지 간단히 yes/no로 답해줘: {text}"
     try:
@@ -119,7 +119,7 @@ def check_with_llama(text):
     except:
         return False
 
-# llama2로 0~100 위험 점수 반환
+    # llama2로 0~100 위험 점수 반환
 def score_with_llama(text):
     prompt = f"다음 문장이 보이스피싱일 위험도가 얼마나 되는지 0에서 100 사이의 숫자로 답해주세요. 숫자만 말해주세요.\n{text}"
     try:
@@ -139,11 +139,11 @@ import os
 
 DB_PATH = "data/phishing_log.db"
 
-# data 폴더 없으면 생성
+    # data 폴더 없으면 생성
 if not os.path.exists("data"):
     os.makedirs("data")
 
-# 텍스트와 점수 DB에 저장
+    # 텍스트와 점수 DB에 저장
 def save_log(text, score):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
@@ -169,7 +169,7 @@ from tkinter import messagebox
 latest_text = ""
 latest_score = 0
 
-# OS별 알림 띄우기
+    # OS별 알림 띄우기
 def alert_user(message):
     if platform.system() == "Windows":
         os.system(f"msg * {message}")
@@ -178,13 +178,13 @@ def alert_user(message):
     else:
         print("[경고]", message)
 
-# 대시보드 값 갱신
+    # 대시보드 값 갱신
 def update_dashboard(text, score):
     global latest_text, latest_score
     latest_text = text
     latest_score = score
 
-# 현재 상태 전달
+    # 현재 상태 전달
 def get_latest():
     return latest_text, latest_score
 
@@ -193,7 +193,7 @@ def get_latest():
 import tkinter as tk
 from notifier import get_latest
 
-# Tkinter 기반 실시간 UI 표시
+    # Tkinter 기반 실시간 UI 표시
 
 def run_dashboard():
     def update():

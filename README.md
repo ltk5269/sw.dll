@@ -1,18 +1,4 @@
-# detect_streaming.py
-import sounddevice as sd
-import numpy as np
-import scipy.io.wavfile as wav
-import os
-import wave
-import threading
-import whisper
-import subprocess
-import sqlite3
-import platform
-import tkinter as tk
-from tkinter import messagebox
-
-#  설정
+# config.py
 CHUNK = 1024
 CHANNELS = 1
 RATE = 16000
@@ -21,19 +7,27 @@ TEMP_FILENAME = "temp.wav"
 DB_PATH = "phishing_log.db"
 SUSPICIOUS_KEYWORDS = ["계좌", "송금", "보안", "인증번호", "공무원", "검찰", "압류"]
 
-latest_text = ""
-latest_score = 0
 
-#  오디오 녹음 함수
+# record.py
+import sounddevice as sd
+import numpy as np
+import scipy.io.wavfile as wav
+from config import RATE, RECORD_SECONDS, TEMP_FILENAME
+
 def record_chunk():
     print("[녹음 시작]")
-    recording = sd.rec(int(RATE * RECORD_SECONDS), samplerate=RATE, channels=CHANNELS, dtype='int16')
+    recording = sd.rec(int(RATE * RECORD_SECONDS), samplerate=RATE, channels=1, dtype='int16')
     sd.wait()
     wav.write(TEMP_FILENAME, RATE, recording)
     print("[녹음 종료]")
 
-#  Whisper 텍스트 변환
+
+# transcribe.py
+import whisper
+from config import TEMP_FILENAME
+
 model = whisper.load_model("base")
+
 def transcribe_audio(file_path):
     try:
         result = model.transcribe(file_path, language='ko')
@@ -42,37 +36,37 @@ def transcribe_audio(file_path):
         print("[Whisper 오류]", e)
         return ""
 
-#  룰 기반 키워드 탐지
-def check_rules(text):
-    for keyword in SUSPICIOUS_KEYWORDS:
-        if keyword in text:
-            return True
-    return False
 
-#  LLaMA2 위험도 분석
+# rules.py
+from config import SUSPICIOUS_KEYWORDS
+
+def check_rules(text):
+    return any(keyword in text for keyword in SUSPICIOUS_KEYWORDS)
+
+
+# llama.py
+import subprocess
+
 def score_with_llama(text):
     prompt = f"다음 문장이 보이스피싱일 위험도가 얼마나 되는지 0에서 100 사이 숫자로 말해줘:\n{text}"
     try:
-        result = subprocess.run(
-            ["ollama", "run", "llama2", prompt],
-            capture_output=True,
-            text=True,
-            timeout=20,
-            encoding='utf-8'  # 🧩 인코딩 오류 방지
-        )
+        result = subprocess.run([
+            "ollama", "run", "llama2", prompt
+        ], capture_output=True, text=True, timeout=20, encoding='utf-8')
         stdout = result.stdout or ""
-        print("[LLM 응답]", stdout.strip())
-
         score_str = stdout.strip().split("\n")[-1].strip()
         digits = ''.join(filter(str.isdigit, score_str))
-        score = int(digits) if digits else 0
-
-        return min(score, 100)
+        return min(int(digits), 100) if digits else 0
     except Exception as e:
         print("[LLM 오류]", e)
         return 0
 
-#  DB 저장
+
+# database.py
+import sqlite3
+import os
+from config import DB_PATH
+
 def save_log(text, score):
     if not os.path.exists(DB_PATH):
         conn = sqlite3.connect(DB_PATH)
@@ -94,65 +88,30 @@ def save_log(text, score):
     conn.commit()
     conn.close()
 
-#  알림
+
+# alert.py
+import platform
+import tkinter as tk
+from tkinter import messagebox
+
 def alert_user(message):
     print(f"[ALERT] {message}")
-    if platform.system() == "Windows":
-        try:
+    try:
+        if platform.system() == "Windows":
             root = tk.Tk()
             root.withdraw()
             messagebox.showwarning("경고", message)
             root.destroy()
-        except Exception as e:
-            print("[알림 오류]", e)
-    elif platform.system() == "Darwin":
-        os.system(f"osascript -e 'display notification \"{message}\"'")
+        elif platform.system() == "Darwin":
+            os.system(f"osascript -e 'display notification \"{message}\"'")
+    except Exception as e:
+        print("[알림 오류]", e)
 
-# 대시보드 업데이트
-def update_dashboard(text, score):
-    global latest_text, latest_score
-    latest_text = text
-    latest_score = score
 
-#  상태 전달
-def get_latest():
-    return latest_text, latest_score
+# dashboard.py
+import tkinter as tk
+from state import get_latest
 
-#  오디오 처리 전체 흐름
-def process_audio():
-    record_chunk()
-    text = transcribe_audio(TEMP_FILENAME)
-    if os.path.exists(TEMP_FILENAME):
-        os.remove(TEMP_FILENAME)
-
-    if not text.strip():
-        print("[텍스트 없음]")
-        return
-
-    print("[텍스트 변환 결과]", text)
-
-    triggered = False
-    if check_rules(text):
-        alert_user("[RULE] 의심 키워드 감지됨")
-        triggered = True
-
-    score = score_with_llama(text)
-    if score >= 70:
-        alert_user(f"[LLM] 위험도 {score}% 감지됨")
-        triggered = True
-
-    save_log(text, score)
-    if triggered:
-        update_dashboard(text, score)
-
-#  반복 스트리밍 실행
-def start_streaming():
-    while True:
-        thread = threading.Thread(target=process_audio)
-        thread.start()
-        thread.join()
-
-#  UI 대시보드
 def run_dashboard():
     def update():
         text, score = get_latest()
@@ -170,7 +129,64 @@ def run_dashboard():
     update()
     root.mainloop()
 
-#  메인 실행
+
+# state.py
+latest_text = ""
+latest_score = 0
+
+def update_dashboard(text, score):
+    global latest_text, latest_score
+    latest_text = text
+    latest_score = score
+
+def get_latest():
+    return latest_text, latest_score
+
+
+# main.py
+import threading
+import os
+from record import record_chunk
+from transcribe import transcribe_audio
+from rules import check_rules
+from llama import score_with_llama
+from database import save_log
+from alert import alert_user
+from dashboard import run_dashboard
+from state import update_dashboard
+from config import TEMP_FILENAME
+
+def process_audio():
+    record_chunk()
+    text = transcribe_audio(TEMP_FILENAME)
+    if os.path.exists(TEMP_FILENAME):
+        os.remove(TEMP_FILENAME)
+
+    if not text.strip():
+        return
+
+    print("[텍스트 변환 결과]", text)
+    triggered = False
+
+    if check_rules(text):
+        alert_user("[RULE] 의심 키워드 감지됨")
+        triggered = True
+
+    score = score_with_llama(text)
+    if score >= 70:
+        alert_user(f"[LLM] 위험도 {score}% 감지됨")
+        triggered = True
+
+    save_log(text, score)
+    if triggered:
+        update_dashboard(text, score)
+
+def start_streaming():
+    while True:
+        thread = threading.Thread(target=process_audio)
+        thread.start()
+        thread.join()
+
 if __name__ == "__main__":
     threading.Thread(target=start_streaming, daemon=True).start()
     run_dashboard()
